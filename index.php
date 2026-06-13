@@ -419,7 +419,8 @@ function selected(string $value, string $expected): string
                     <div class="form-grid">
                         <div>
                             <label for="website">Website address</label>
-                            <input id="website" name="website" type="url" placeholder="https://example.com" value="<?php echo esc($website); ?>" required>
+                            <input id="website" name="website" type="text" inputmode="url" autocomplete="url" placeholder="www.example.com" value="<?php echo esc($website); ?>" required>
+                            <p class="hint">You can enter a full URL or a www address. The app will add https:// when needed.</p>
                         </div>
 
                         <div>
@@ -579,7 +580,15 @@ function selected(string $value, string $expected): string
                     throw new Error('Enter a website address before generating a QR code.');
                 }
 
-                const parsed = new URL(trimmed);
+                if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
+                    throw new Error('Use an http or https website address.');
+                }
+
+                const normalized = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+                    ? trimmed
+                    : `https://${trimmed}`;
+
+                const parsed = new URL(normalized);
                 if (!['http:', 'https:'].includes(parsed.protocol)) {
                     throw new Error('Use an http or https website address.');
                 }
