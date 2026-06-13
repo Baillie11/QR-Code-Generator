@@ -32,8 +32,8 @@ $allowedDesigns = [
     'poster' => 'Image poster',
 ];
 $allowedImageFits = [
-    'badge' => 'Centered badge',
-    'circle' => 'Circular badge',
+    'badge' => 'Safe square badge',
+    'circle' => 'Safe circular badge',
     'none' => 'No image overlay',
 ];
 
@@ -425,7 +425,7 @@ function selected(string $value, string $expected): string
                         <div>
                             <label for="image">Overlay image (optional)</label>
                             <input id="image" name="image" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
-                            <p class="hint">Upload an image to use as a center badge or poster artwork. Recommended: PNG, JPG, or WebP up to 4MB.</p>
+                            <p class="hint">Upload an image to use as a small center badge or poster artwork. Recommended: PNG, JPG, or WebP up to 4MB.</p>
                         </div>
 
                         <div class="two-up">
@@ -502,7 +502,7 @@ function selected(string $value, string $expected): string
                             </div>
                         </div>
 
-                        <p class="hint">Use six-digit hex values without a leading #, for example 0f766e or ffffff. Use high error correction for image badges, rounded dots, and poster designs.</p>
+                        <p class="hint">Use six-digit hex values without a leading #, for example 0f766e or ffffff. Image overlays are rendered with high error correction automatically to protect scan reliability.</p>
 
                         <div class="actions">
                             <button class="button primary" type="submit">Generate QR code</button>
@@ -818,7 +818,7 @@ function selected(string $value, string $expected): string
                 ctx.stroke();
 
                 drawStylizedQr(ctx, qrImage, 164, 246, 572, 'soft', foreground, background);
-                drawImageBadge(ctx, overlayImage, 450, 532, 150, 'circle', foreground);
+                drawImageBadge(ctx, overlayImage, 450, 532, 104, 'circle', foreground);
 
                 fillRoundedRect(ctx, 114, 782, 672, 76, 28, '#f4a090');
                 ctx.fillStyle = '#7a3e2f';
@@ -844,10 +844,14 @@ function selected(string $value, string $expected): string
 
                 const shouldDrawBadge = overlayImage && options.imageFit !== 'none' && ['classic', 'rounded', 'soft', 'badge'].includes(options.design);
                 if (shouldDrawBadge) {
-                    const badgeSize = size * (options.design === 'badge' ? 0.3 : 0.24);
+                    const badgeSize = size * (options.design === 'badge' ? 0.18 : 0.16);
                     const badgeMode = options.design === 'badge' ? 'circle' : options.imageFit;
                     drawImageBadge(ctx, overlayImage, size / 2, size / 2, badgeSize, badgeMode, options.foreground);
                 }
+            }
+
+            function shouldReserveQrDataForImage(design, imageFit) {
+                return overlayImage && imageFit !== 'none' && ['classic', 'rounded', 'soft', 'badge', 'poster'].includes(design);
             }
 
             function renderQr() {
@@ -868,9 +872,9 @@ function selected(string $value, string $expected): string
                 const foreground = normalizeHex(foregroundInput.value, '111111');
                 const background = normalizeHex(backgroundInput.value, 'ffffff');
                 const filename = sanitizeFilename(filenameInput.value);
-                const errorLevel = errorLevelInput.value;
                 const design = designInput.value;
                 const imageFit = imageFitInput.value;
+                const errorLevel = shouldReserveQrDataForImage(design, imageFit) ? 'H' : errorLevelInput.value;
                 const caption = String(captionInput.value || '').trim();
                 const qrSize = design === 'poster' ? 480 : size;
                 const qrUrl = buildServiceUrl(url, qrSize, margin, foreground, background, errorLevel);
