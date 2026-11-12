@@ -1,4 +1,5 @@
 <?php
+require __DIR__ . '/contact-handler.php';
 $defaultWebsite = 'https://example.com';
 $defaultSize = '320';
 $defaultMargin = '24';
@@ -11,6 +12,8 @@ $defaultCaption = 'Scan to visit';
 $defaultFilename = 'qr-code';
 
 $website = trim($_GET['website'] ?? $defaultWebsite);
+$discountCode = trim($_GET['discountCode'] ?? '');
+$discountParameter = trim($_GET['discountParameter'] ?? 'discount');
 $size = $_GET['size'] ?? $defaultSize;
 $margin = $_GET['margin'] ?? $defaultMargin;
 $foreground = preg_replace('/[^A-Fa-f0-9]/', '', $_GET['foreground'] ?? $defaultForeground);
@@ -361,6 +364,24 @@ function selected(string $value, string $expected): string
             font: 600 0.95rem/1.5 Arial, sans-serif;
         }
 
+        .contact-dialog {
+            width: min(520px, calc(100% - 32px));
+            max-height: calc(100dvh - 32px);
+            overflow-y: auto;
+            padding: 28px;
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius);
+            background: #fffaf1;
+            color: var(--text);
+            box-shadow: var(--shadow);
+        }
+
+        .contact-dialog::backdrop { background: rgba(18, 32, 47, 0.6); }
+        .contact-dialog h2 { margin: 0; font-family: Georgia, serif; font-size: 1.8rem; }
+        .contact-dialog .eyebrow { margin-bottom: 14px; }
+        .contact-dialog .hint { margin: 12px 0 20px; }
+        .button:focus-visible { outline: 3px solid var(--primary); outline-offset: 4px; }
+
         @media (max-width: 900px) {
             .layout {
                 grid-template-columns: 1fr;
@@ -423,10 +444,24 @@ function selected(string $value, string $expected): string
                             <p class="hint">You can enter a full URL or a www address. The app will add https:// when needed.</p>
                         </div>
 
+                        <div class="two-up">
+                            <div>
+                                <label for="discountCode">Discount code (optional)</label>
+                                <input id="discountCode" name="discountCode" type="text" value="<?php echo esc($discountCode); ?>" placeholder="SAVE10" autocomplete="off" autocapitalize="characters" aria-describedby="discount-caps-hint discount-hint">
+                                <p id="discount-caps-hint" class="hint" style="font-size: 11px;">Automatically converted to ALL CAPITALS.</p>
+                                <p id="discount-hint" class="hint">Included in the QR destination when scanned. Your website must support the parameter to apply the discount.</p>
+                            </div>
+                            <div>
+                                <label for="discountParameter">Discount URL parameter</label>
+                                <input id="discountParameter" name="discountParameter" type="text" value="<?php echo esc($discountParameter); ?>" placeholder="discount" autocomplete="off">
+                                <p class="hint">Use the name your website expects, such as discount, coupon, or promo. Defaults to discount.</p>
+                            </div>
+                        </div>
+
                         <div>
                             <label for="image">Overlay image (optional)</label>
                             <input id="image" name="image" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
-                            <p class="hint">Upload an image to use as a small center badge or poster artwork. Recommended: PNG, JPG, or WebP up to 4MB.</p>
+                            <p class="hint">Upload an image to use as a small center badge or poster artwork. Center images stretch or shrink to fill the badge; circular and rounded badges mask the corners. Recommended: PNG, JPG, or WebP up to 4MB.</p>
                         </div>
 
                         <div class="two-up">
@@ -508,6 +543,7 @@ function selected(string $value, string $expected): string
                         <div class="actions">
                             <button class="button primary" type="submit">Generate QR code</button>
                             <a id="download-btn" class="button secondary" href="#" download="qr-code.png" aria-disabled="true">Download PNG</a>
+                            <button class="button secondary" type="reset">Reset</button>
                         </div>
                     </div>
                 </form>
@@ -520,6 +556,7 @@ function selected(string $value, string $expected): string
                 </div>
 
                 <div class="meta-grid">
+                    <p id="destination-preview" class="meta" hidden style="overflow-wrap: anywhere;">QR destination: <a id="destination-link" target="_blank" rel="noopener noreferrer"></a></p>
                     <p class="meta">Validated website input, custom colors, quiet zone control, selectable error correction, uploaded image badges, and poster-style QR artwork.</p>
                     <p class="meta">The PNG download is composed locally in the browser from your selected settings.</p>
                 </div>
@@ -529,6 +566,36 @@ function selected(string $value, string $expected): string
         <p class="footnote">Tip: if you want the code to scan reliably, keep the foreground dark and the background light.</p>
     </main>
 
+    <dialog id="contact-dialog" class="contact-dialog" aria-labelledby="contact-title" aria-describedby="contact-description">
+        <div class="eyebrow">Always free</div>
+        <h2 id="contact-title">Your QR code is ready</h2>
+        <p id="contact-description" class="hint">Share your contact details to download your free PNG. We store these details in our contact list, managed with Click Marketing Agent, to know who uses this generator. No payment required.</p>
+        <form id="contact-form" class="form-grid">
+            <input type="hidden" name="csrf" value="<?php echo esc($contactCsrf); ?>">
+            <div>
+                <label for="contact-name">Name</label>
+                <input id="contact-name" name="name" autocomplete="name" maxlength="150" required autofocus>
+            </div>
+            <div>
+                <label for="contact-business">Business name</label>
+                <input id="contact-business" name="business" autocomplete="organization" maxlength="150" required>
+            </div>
+            <div>
+                <label for="contact-email">Email address</label>
+                <input id="contact-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+            </div>
+            <div>
+                <label for="contact-website">Website URL</label>
+                <input id="contact-website" name="website" type="url" autocomplete="url" maxlength="2048" required>
+            </div>
+            <p id="contact-error" class="message error" role="alert" hidden></p>
+            <div class="actions">
+                <button id="contact-submit" class="button primary" type="submit">Download free PNG</button>
+                <button id="contact-cancel" class="button secondary" type="button">Cancel</button>
+            </div>
+        </form>
+    </dialog>
+
     <script>
         (() => {
             const form = document.getElementById('qr-form');
@@ -537,8 +604,21 @@ function selected(string $value, string $expected): string
             const canvas = document.getElementById('qr-canvas');
             const ctx = canvas.getContext('2d');
             const downloadButton = document.getElementById('download-btn');
+            const contactDialog = document.getElementById('contact-dialog');
+            const contactForm = document.getElementById('contact-form');
+            const contactWebsite = document.getElementById('contact-website');
+            const contactError = document.getElementById('contact-error');
+            const contactSubmit = document.getElementById('contact-submit');
+            const contactCancel = document.getElementById('contact-cancel');
+            let contactBusy = false;
+            let contactRequestId = '';
+            let renderedWebsite = '';
 
             const websiteInput = document.getElementById('website');
+            const discountCodeInput = document.getElementById('discountCode');
+            const discountParameterInput = document.getElementById('discountParameter');
+            const destinationPreview = document.getElementById('destination-preview');
+            const destinationLink = document.getElementById('destination-link');
             const imageInput = document.getElementById('image');
             const sizeInput = document.getElementById('size');
             const marginInput = document.getElementById('margin');
@@ -551,6 +631,8 @@ function selected(string $value, string $expected): string
             const filenameInput = document.getElementById('filename');
 
             let overlayImage = null;
+            let renderVersion = 0;
+            let uploadVersion = 0;
 
             function showMessage(message, isError = false) {
                 status.textContent = message;
@@ -596,7 +678,23 @@ function selected(string $value, string $expected): string
                 return parsed.toString();
             }
 
+            function buildDestinationUrl(website, discountCode, discountParameter) {
+                const url = parseUrl(website);
+                const code = String(discountCode || '').trim().toUpperCase();
+                if (!code) {
+                    return url;
+                }
+
+                const destination = new URL(url);
+                const parameter = String(discountParameter || '').trim() || 'discount';
+                destination.searchParams.set(parameter, code);
+                return destination.toString();
+            }
+
             function clearOutput() {
+                destinationPreview.hidden = true;
+                destinationLink.removeAttribute('href');
+                destinationLink.textContent = '';
                 canvas.hidden = true;
                 placeholder.hidden = false;
                 downloadButton.href = '#';
@@ -786,7 +884,10 @@ function selected(string $value, string $expected): string
                     targetCtx.clip();
                 }
 
-                drawCoverImage(targetCtx, image, x, y, size, size);
+                // Resize the full image into the badge instead of cropping its source edges.
+                targetCtx.imageSmoothingEnabled = true;
+                targetCtx.imageSmoothingQuality = 'high';
+                targetCtx.drawImage(image, x, y, size, size);
                 targetCtx.restore();
             }
 
@@ -864,11 +965,13 @@ function selected(string $value, string $expected): string
             }
 
             function renderQr() {
+                const version = ++renderVersion;
+                downloadButton.setAttribute('aria-disabled', 'true');
                 clearMessage();
 
                 let url;
                 try {
-                    url = parseUrl(websiteInput.value);
+                    url = buildDestinationUrl(websiteInput.value, discountCodeInput.value, discountParameterInput.value);
                 } catch (error) {
                     clearOutput();
                     showMessage(error.message, true);
@@ -891,6 +994,7 @@ function selected(string $value, string $expected): string
                 const qrImage = new Image();
                 qrImage.crossOrigin = 'anonymous';
                 qrImage.onload = () => {
+                    if (version !== renderVersion) return;
                     try {
                         composeArtwork(qrImage, {
                             url,
@@ -906,10 +1010,14 @@ function selected(string $value, string $expected): string
 
                         placeholder.hidden = true;
                         canvas.hidden = false;
+                        destinationLink.href = url;
+                        destinationLink.textContent = url;
+                        destinationPreview.hidden = false;
 
                         downloadButton.href = '#';
                         downloadButton.download = `${filename}.png`;
                         downloadButton.setAttribute('aria-disabled', 'false');
+                        renderedWebsite = parseUrl(websiteInput.value);
 
                         const message = design === 'poster'
                             ? 'Your poster-style QR artwork is ready. Download the PNG when you are happy with the settings.'
@@ -924,6 +1032,7 @@ function selected(string $value, string $expected): string
                 };
 
                 qrImage.onerror = () => {
+                    if (version !== renderVersion) return;
                     clearOutput();
                     showMessage('The QR image service could not generate the code right now. Try again in a moment.', true);
                 };
@@ -932,6 +1041,7 @@ function selected(string $value, string $expected): string
             }
 
             function handleImageUpload(event) {
+                const version = ++uploadVersion;
                 const file = event.target.files[0];
 
                 if (!file) {
@@ -950,14 +1060,17 @@ function selected(string $value, string $expected): string
                 const reader = new FileReader();
 
                 reader.onload = (e) => {
+                    if (version !== uploadVersion) return;
                     const img = new Image();
                     img.onload = () => {
+                        if (version !== uploadVersion) return;
                         overlayImage = img;
                         clearMessage();
                         renderQr();
                     };
 
                     img.onerror = () => {
+                        if (version !== uploadVersion) return;
                         showMessage('Could not load the image. Please check the file format.', true);
                         imageInput.value = '';
                         overlayImage = null;
@@ -967,6 +1080,7 @@ function selected(string $value, string $expected): string
                 };
 
                 reader.onerror = () => {
+                    if (version !== uploadVersion) return;
                     showMessage('Could not read the file. Please try again.', true);
                     imageInput.value = '';
                     overlayImage = null;
@@ -974,6 +1088,32 @@ function selected(string $value, string $expected): string
 
                 reader.readAsDataURL(file);
             }
+
+            function uppercaseDiscountCode() {
+                const start = discountCodeInput.selectionStart;
+                const end = discountCodeInput.selectionEnd;
+                const value = discountCodeInput.value;
+                discountCodeInput.value = value.toUpperCase();
+                if (start !== null && end !== null) {
+                    discountCodeInput.setSelectionRange(
+                        value.slice(0, start).toUpperCase().length,
+                        value.slice(0, end).toUpperCase().length
+                    );
+                }
+            }
+
+            discountCodeInput.defaultValue = discountCodeInput.defaultValue.toUpperCase();
+            uppercaseDiscountCode();
+            discountCodeInput.addEventListener('input', uppercaseDiscountCode);
+
+            form.addEventListener('reset', () => {
+                ++renderVersion;
+                ++uploadVersion;
+                overlayImage = null;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                clearOutput();
+                clearMessage();
+            });
 
             form.addEventListener('submit', (event) => {
                 event.preventDefault();
@@ -987,21 +1127,52 @@ function selected(string $value, string $expected): string
             });
 
             downloadButton.addEventListener('click', (event) => {
+                event.preventDefault();
                 if (downloadButton.getAttribute('aria-disabled') === 'true') {
-                    event.preventDefault();
                     return;
                 }
+                contactWebsite.value = renderedWebsite;
+                contactError.hidden = true;
+                contactRequestId = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+                contactDialog.showModal();
+            });
 
-                // Prevent default link behavior and handle download manually
+            contactCancel.addEventListener('click', () => contactDialog.close());
+            contactDialog.addEventListener('cancel', (event) => {
+                if (contactBusy) event.preventDefault();
+            });
+
+            contactForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
-
-                const filename = sanitizeFilename(filenameInput.value) + '.png';
-                canvas.toBlob((blob) => {
-                    if (!blob) {
-                        showMessage('The browser could not prepare the PNG download. Generate the QR code again and retry.', true);
-                        return;
+                if (contactBusy || !contactForm.reportValidity()) return;
+                contactBusy = true;
+                contactSubmit.disabled = true;
+                contactCancel.disabled = true;
+                contactSubmit.textContent = 'Preparing download…';
+                contactError.hidden = true;
+                try {
+                    for (const input of contactForm.querySelectorAll('input:not([type="hidden"])')) {
+                        input.value = input.value.trim();
+                        if (!input.value) throw new Error('Please complete all four contact fields.');
                     }
-
+                    contactWebsite.value = parseUrl(contactWebsite.value);
+                    const filename = sanitizeFilename(filenameInput.value) + '.png';
+                    const blob = await new Promise((resolve, reject) => {
+                        canvas.toBlob(result => result ? resolve(result) : reject(new Error('The browser could not prepare the PNG. Please try again.')), 'image/png');
+                    });
+                    const data = new FormData(contactForm);
+                    data.set('requestId', contactRequestId);
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 20000);
+                    try {
+                        const response = await fetch(window.location.pathname, {
+                            method: 'POST', body: data, credentials: 'same-origin', signal: controller.signal,
+                        });
+                        const result = await response.json();
+                        if (!response.ok || !result.saved) throw new Error(result.error || 'We could not save your details. Please try again.');
+                    } finally {
+                        clearTimeout(timeout);
+                    }
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
@@ -1009,8 +1180,19 @@ function selected(string $value, string $expected): string
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                });
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                    contactDialog.close();
+                    showMessage('Your details have been saved and your free PNG download has started.');
+                } catch (error) {
+                    contactError.textContent = error.name === 'AbortError' || error instanceof TypeError || error instanceof SyntaxError
+                        ? 'We could not connect to save your details. Please try again.' : error.message;
+                    contactError.hidden = false;
+                } finally {
+                    contactBusy = false;
+                    contactSubmit.disabled = false;
+                    contactCancel.disabled = false;
+                    contactSubmit.textContent = 'Download free PNG';
+                }
             });
 
             websiteInput.value = websiteInput.value || 'https://example.com';
